@@ -1,2 +1,19 @@
 pandas
+numpy
+yfinance
+matplotlib
+plotly
+seaborn
+scikit-learn
+xgboost
+ta
+quantstats
+empyrical
+os
+glob
+datetime
+backtrader
+joblib
+loguru
+tqdm
 
