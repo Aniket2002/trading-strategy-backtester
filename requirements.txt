@@ -1,19 +1,25 @@
+# Core data tools
 pandas
 numpy
-yfinance
 matplotlib
-plotly
 seaborn
-scikit-learn
-xgboost
+plotly
+
+# Financial tools
+yfinance
+backtrader
 ta
 quantstats
 empyrical
-streamlit
-glob
-datetime
-backtrader
+
+# Machine learning
+scikit-learn
+xgboost
 joblib
+
+# Streamlit UI
+streamlit
+
+# Logging and utilities
 loguru
 tqdm
-
