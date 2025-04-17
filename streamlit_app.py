@@ -6,6 +6,7 @@ import importlib
 from io import StringIO
 
 from strategies.sma_ema import sma_ema_strategy
+from strategies.rsi import rsi_strategy
 import backtest_engine.simulate_strategy as sim
 importlib.reload(sim)
 from backtest_engine.simulate_strategy import simulate_trading
@@ -14,39 +15,50 @@ st.set_page_config(page_title="Strategy Backtester", layout="wide")
 st.markdown("<h1 style='color:#00C49F'>🎰 Strategy-Gamble Backtester</h1>", unsafe_allow_html=True)
 
 st.markdown("""
-Welcome to **Strategy-Gamble** — an interactive tool to visualize how trading strategies would have performed on real market data.
+Welcome to **Strategy-Gamble** — an interactive tool to visualize how trading strategies would have performed on real stock data.
 
 This app lets you:
-- Backtest SMA/EMA crossovers  
+- Backtest SMA/EMA and RSI strategies  
 - Simulate trades and view performance  
-- Download your trade log  
+- Download trade logs  
 - Understand key metrics — beginner-friendly
 """)
 
-# Sidebar inputs
+# Sidebar controls
 st.sidebar.header("⚙️ Parameters")
+strategy_choice = st.sidebar.selectbox("Select Strategy", ["SMA/EMA Crossover", "RSI Strategy"])
 
-with st.sidebar.expander("📘 What is SMA/EMA Strategy?"):
-    st.markdown("""
-**SMA (Simple Moving Average)**  
-The average closing price over the last N days.
+with st.sidebar.expander("📘 Strategy Description"):
+    if strategy_choice == "SMA/EMA Crossover":
+        st.markdown("""
+**SMA/EMA Crossover**
 
-**EMA (Exponential Moving Average)**  
-A more responsive version of SMA — gives more weight to recent prices.
-
-**Strategy**  
 Buy when **EMA crosses above SMA**  
 Sell when **EMA crosses below SMA**
-""")
+        """)
+    else:
+        st.markdown("""
+**RSI Strategy**
+
+Buy when **RSI < 30** (oversold)  
+Sell when **RSI > 50** (momentum reversal)
+        """)
 
 ticker = st.sidebar.text_input("Ticker", placeholder="e.g. AAPL").upper()
 start_date = st.sidebar.date_input("Start Date")
 end_date = st.sidebar.date_input("End Date")
-sma_win = st.sidebar.slider("SMA Window", 10, 200, help="SMA period")
-ema_win = st.sidebar.slider("EMA Window", 5, 100, help="EMA period")
+
+if strategy_choice == "SMA/EMA Crossover":
+    sma_win = st.sidebar.slider("SMA Window", 10, 200, value=50)
+    ema_win = st.sidebar.slider("EMA Window", 5, 100, value=20)
+
+if strategy_choice == "RSI Strategy":
+    rsi_window = st.sidebar.slider("RSI Window", 5, 30, value=14)
+    rsi_buy = st.sidebar.slider("RSI Buy Threshold", 10, 50, value=30)
+    rsi_sell = st.sidebar.slider("RSI Exit Threshold", 40, 70, value=50)
 
 if st.sidebar.button("🚀 Run Strategy"):
-    st.subheader(f"Backtest for {ticker} from {start_date} to {end_date}")
+    st.subheader(f"{strategy_choice} on {ticker} from {start_date} to {end_date}")
 
     try:
         df = yf.download(ticker, start=start_date, end=end_date)
@@ -63,7 +75,10 @@ if st.sidebar.button("🚀 Run Strategy"):
         df.reset_index(inplace=True)
         df.set_index("Date", inplace=True)
 
-        df = sma_ema_strategy(df, sma_window=sma_win, ema_window=ema_win)
+        if strategy_choice == "SMA/EMA Crossover":
+            df = sma_ema_strategy(df, sma_window=sma_win, ema_window=ema_win)
+        else:
+            df = rsi_strategy(df, rsi_window=rsi_window, rsi_buy=rsi_buy, rsi_exit=rsi_sell)
 
         if "Position" not in df.columns:
             st.error("❌ Strategy output missing 'Position' column.")
@@ -73,30 +88,22 @@ if st.sidebar.button("🚀 Run Strategy"):
         df = simulate_trading(df, save_reports=False)
 
         st.markdown("<h3 style='color:#00C49F'>📊 Interactive Price Chart + Signals</h3>", unsafe_allow_html=True)
-        with st.expander("📖 What does this show?"):
-            st.markdown("""
-- Interactive price chart with zoom + hover  
-- **Green ↑ BUY** markers when EMA > SMA  
-- **Red ↓ SELL** markers when EMA < SMA
-""")
 
-        # Plotly interactive chart
         price_fig = go.Figure()
-
         price_fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode='lines', name='Close', line=dict(color='white')))
-        price_fig.add_trace(go.Scatter(x=df.index, y=df["SMA"], mode='lines', name=f'SMA {sma_win}', line=dict(dash='dash', color='cyan')))
-        price_fig.add_trace(go.Scatter(x=df.index, y=df["EMA"], mode='lines', name=f'EMA {ema_win}', line=dict(dash='dot', color='orange')))
+        if "SMA" in df.columns:
+            price_fig.add_trace(go.Scatter(x=df.index, y=df["SMA"], mode='lines', name='SMA', line=dict(dash='dash', color='cyan')))
+        if "EMA" in df.columns:
+            price_fig.add_trace(go.Scatter(x=df.index, y=df["EMA"], mode='lines', name='EMA', line=dict(dash='dot', color='orange')))
 
-        # Trade signals
-        buy_signals = df[df["Buy/Sell"] == "BUY"]
-        sell_signals = df[df["Buy/Sell"] == "SELL"]
+        buy_signals = df[df["Position"] == 1]
+        sell_signals = df[df["Position"] == -1]
 
         price_fig.add_trace(go.Scatter(
             x=buy_signals.index, y=buy_signals["Close"],
             mode='markers', marker=dict(symbol='triangle-up', size=10, color='lime'),
             name='BUY Signal'
         ))
-
         price_fig.add_trace(go.Scatter(
             x=sell_signals.index, y=sell_signals["Close"],
             mode='markers', marker=dict(symbol='triangle-down', size=10, color='red'),
@@ -114,23 +121,16 @@ if st.sidebar.button("🚀 Run Strategy"):
 
         st.plotly_chart(price_fig, use_container_width=True)
 
-        # Portfolio chart
+        if "RSI" in df.columns:
+            st.markdown("<h3 style='color:#00C49F'>📉 RSI Indicator</h3>", unsafe_allow_html=True)
+            with st.expander("📖 What does this show?"):
+                st.markdown("Relative Strength Index (RSI) tracks momentum. <30 = oversold (buy), >70 = overbought (sell).")
+            st.line_chart(df["RSI"], use_container_width=True)
+
         st.markdown("<h3 style='color:#00C49F'>💼 Portfolio Value Over Time</h3>", unsafe_allow_html=True)
-        with st.expander("📖 What does this show?"):
-            st.markdown("Your portfolio's value if you started with $100,000 using this strategy.")
         st.line_chart(df["Total Value"], use_container_width=True)
 
-        # Strategy metrics
         st.markdown("<h3 style='color:#00C49F'>📈 Strategy Metrics</h3>", unsafe_allow_html=True)
-        with st.expander("📖 What do these mean?"):
-            st.markdown("""
-- **Final Value**: What you end up with  
-- **Return (%)**: Total gain/loss  
-- **Sharpe Ratio**: Risk-adjusted performance  
-- **Max Drawdown**: Worst dip from a peak  
-- **Trades**: Number of entries/exits
-""")
-
         final_val = df["Total Value"].iloc[-1]
         ret_pct = round((final_val / 100000 - 1) * 100, 2)
         sharpe = df["Total Value"].pct_change().mean() / df["Total Value"].pct_change().std() * (252 ** 0.5)
@@ -144,17 +144,12 @@ if st.sidebar.button("🚀 Run Strategy"):
         cols[3].metric("Max Drawdown", f"{drawdown:.2f}%")
         st.caption(f"🔁 Total Trades: {trades}")
 
-        # Trade log
         st.markdown("<h3 style='color:#00C49F'>📋 Trade Log</h3>", unsafe_allow_html=True)
-        with st.expander("📖 What does this show?"):
-            st.markdown("Shows every buy and sell the strategy made.")
-
         trade_log = df[df["Buy/Sell"].isin(["BUY", "SELL"])][["Buy/Sell", "Close"]].copy()
         trade_log["Date"] = trade_log.index
         trade_log.rename(columns={"Buy/Sell": "Action", "Close": "Price"}, inplace=True)
         st.dataframe(trade_log.reset_index(drop=True))
 
-        # Download
         csv_buffer = StringIO()
         trade_log.to_csv(csv_buffer, index=False)
         st.download_button("📥 Download Trade Log CSV", csv_buffer.getvalue(), file_name="trade_log.csv", mime="text/csv")
