@@ -1,63 +1,47 @@
-# 📈 TradePilot – A Backtesting Engine for Trading Strategies
+# 🎰 strategy-gamble
 
-**TradePilot** is a modular backtesting framework for evaluating rule-based and ML-powered trading strategies on historical market data. Designed with a focus on clean architecture, reproducibility, and extensibility, it simulates how trading strategies would perform in real-world conditions.
+A Streamlit-powered backtesting dashboard that lets you simulate and visualize trading strategies — because sometimes, strategy *is* a gamble.
 
 ---
 
 ## 🚀 Features
 
-- 📊 Load historical stock data using `yfinance`
-- ⚙️ Plug-and-play strategy architecture (SMA/EMA crossover, ML models, etc.)
-- 🧪 Backtest engine with portfolio simulation
-- 📉 Metrics: cumulative returns, drawdowns, Sharpe ratio, and more
-- 📁 Modular structure for easy experimentation and scaling
+- 📈 SMA/EMA crossover trading strategy
+- 💰 Portfolio growth tracking
+- 🧮 Sharpe ratio, drawdown, and trade metrics
+- 🔁 Buy/sell signal markers
+- 📋 Trade logs and performance exports
+- 🎨 Interactive Streamlit UI with clean dark theme
 
 ---
 
-## 📂 Project Structure
+## 📦 Run Locally
 
-backtesting-ml-strategies/
+```bash
+# 1. Clone the repo
+git clone https://github.com/yourusername/strategy-gamble.git
+cd strategy-gamble
 
-├── data/               # Raw and cleaned historical data
-├── notebooks/          # EDA and strategy research notebooks
-├── strategies/         # Strategy definitions (rule-based and ML)
-├── backtest_engine/    # Core simulation logic and trade tracking
-├── reports/            # Performance visualizations and logs
-├── requirements.txt    # Project dependencies
-└── README.md           # Project overview
+# 2. Install dependencies
+pip install -r requirements.txt
 
----
-
-## 🧠 Strategy Example (WIP)
-
-> **SMA/EMA Crossover:** Buy when short-term average crosses above long-term average, sell when it crosses below. Simple but a good starting benchmark.
+# 3. Run the app
+streamlit run streamlit_app.py
+```
 
 ---
 
-## 📈 Next Steps
+## 📊 Strategy Logic
 
-- [ ] Add basic SMA/EMA crossover logic
-- [ ] Implement a backtest simulator
-- [ ] Visualize performance (returns, drawdowns)
-- [ ] Explore ML-based strategies
+This dashboard uses a simple **SMA/EMA crossover** strategy:
 
----
+- 📈 **Buy** when the EMA crosses above the SMA  
+- 📉 **Sell** when the EMA crosses below the SMA  
+- Simulated with $100,000 initial capital  
+- Tracks portfolio value, trades, and cumulative performance
 
-## 📦 Dependencies
-
-To be installed from `requirements.txt`. Primary libraries:
-- `yfinance`
-- `pandas`
-- `numpy`
-- `matplotlib` / `plotly`
-- `sklearn` (for ML strategies)
+All price data is sourced from [Yahoo Finance](https://finance.yahoo.com/) via the `yfinance` API.
 
 ---
 
-## 🧰 Ideal For
-
-- Tech professionals entering quant finance
-- Algo trading enthusiasts
-- Anyone wanting to simulate and validate trading ideas
-
----
+## 🤹‍♂️ Because trading is part strategy, part gamble.
