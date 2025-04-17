@@ -11,7 +11,24 @@ import backtest_engine.simulate_strategy as sim
 importlib.reload(sim)
 from backtest_engine.simulate_strategy import simulate_trading
 
+# 📐 Compact layout: reduce top/bottom padding
 st.set_page_config(page_title="Strategy Backtester", layout="wide")
+st.markdown("""
+    <style>
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+    section.main > div:first-child {
+        padding-top: 1rem;
+    }
+    [data-testid="stSidebar"] {
+        padding-top: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Title and intro
 st.markdown("<h1 style='color:#00C49F'>🎰 Strategy-Gamble Backtester</h1>", unsafe_allow_html=True)
 
 st.markdown("""
@@ -57,6 +74,7 @@ if strategy_choice == "RSI Strategy":
     rsi_buy = st.sidebar.slider("RSI Buy Threshold", 10, 50, value=30)
     rsi_sell = st.sidebar.slider("RSI Exit Threshold", 40, 70, value=50)
 
+# 🚀 Button (now visible immediately)
 if st.sidebar.button("🚀 Run Strategy"):
     st.subheader(f"{strategy_choice} on {ticker} from {start_date} to {end_date}")
 
