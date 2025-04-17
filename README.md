@@ -19,7 +19,7 @@ A Streamlit-powered backtesting dashboard that lets you simulate and visualize t
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/yourusername/strategy-gamble.git
+git clone https://github.com/Aniket2002/strategy-gamble.git
 cd strategy-gamble
 
 # 2. Install dependencies
