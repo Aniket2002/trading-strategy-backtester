@@ -9,7 +9,7 @@ xgboost
 ta
 quantstats
 empyrical
-os
+streamlit
 glob
 datetime
 backtrader
