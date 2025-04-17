@@ -17,6 +17,7 @@
 ## 📂 Project Structure
 
 backtesting-ml-strategies/
+
 ├── data/               # Raw and cleaned historical data
 ├── notebooks/          # EDA and strategy research notebooks
 ├── strategies/         # Strategy definitions (rule-based and ML)
