@@ -151,7 +151,8 @@ if st.sidebar.button("🚀 Run Strategy"):
         st.markdown("<h3 style='color:#00C49F'>📈 Strategy Metrics</h3>", unsafe_allow_html=True)
         final_val = df["Total Value"].iloc[-1]
         ret_pct = round((final_val / 100000 - 1) * 100, 2)
-        sharpe = df["Total Value"].pct_change().mean() / df["Total Value"].pct_change().std() * (252 ** 0.5)
+        returns = df["Total Value"].pct_change().dropna()
+        sharpe = (returns.mean() / returns.std()) * (252 ** 0.5) if returns.std() != 0 else 0
         drawdown = (df["Total Value"] / df["Total Value"].cummax() - 1).min() * 100
         trades = df["Buy/Sell"].isin(["BUY", "SELL"]).sum()
 
