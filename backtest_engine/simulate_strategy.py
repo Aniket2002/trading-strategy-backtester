@@ -3,10 +3,7 @@ import numpy as np
 import os
 
 def simulate_trading(df: pd.DataFrame, initial_cash: float = 100000.0, save_reports: bool = True) -> pd.DataFrame:
-    """
-    Simulates a simple long-only strategy and tracks performance.
-    Includes full debugging for Position values.
-    """
+    """Simulate long-only trading with next-bar execution to avoid look-ahead bias."""
     df = df.copy()
 
     cash = initial_cash
@@ -14,25 +11,14 @@ def simulate_trading(df: pd.DataFrame, initial_cash: float = 100000.0, save_repo
     portfolio_values = []
     trades = []
 
+    exec_position = df["Position"].shift(1).fillna(0.0)
+
     for idx, row in df.iterrows():
         price = row["Close"]
         signal = ""
         shares = 0
 
-        # ✅ Debug: Check Position type and value
-        try:
-            position_raw = row["Position"]
-            print(f"[DEBUG] {idx} - Position raw type: {type(position_raw)}, value: {position_raw}")
-
-            # Convert to float if it's not already
-            if isinstance(position_raw, pd.Series):
-                position = float(position_raw.iloc[0])
-            else:
-                position = float(position_raw)
-
-        except Exception as e:
-            print(f"[ERROR] {idx} - Could not convert Position: {row['Position']} → {e}")
-            position = 0.0
+        position = float(exec_position.loc[idx])
 
         # ✅ Buy logic
         if position == 1.0 and cash > 0:

@@ -1,6 +1,6 @@
-# 🎰 strategy-gamble
+# Walk-Forward Equity Strategy Backtester
 
-A Streamlit-powered backtesting dashboard that lets you simulate and visualize trading strategies — because sometimes, strategy *is* a gamble.
+A Streamlit-powered backtesting dashboard for educational walk-forward strategy simulation and diagnostics.
 
 ---
 
@@ -19,8 +19,8 @@ A Streamlit-powered backtesting dashboard that lets you simulate and visualize t
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/Aniket2002/strategy-gamble.git
-cd strategy-gamble
+git clone https://github.com/Aniket2002/trading-strategy-backtester.git
+cd trading-strategy-backtester
 
 # 2. Install dependencies
 pip install -r requirements.txt
@@ -44,4 +44,6 @@ All price data is sourced from [Yahoo Finance](https://finance.yahoo.com/) via t
 
 ---
 
-## 🤹‍♂️ Because trading is part strategy, part gamble.
+## Notes
+
+This project is intended for educational backtesting. Signals are executed on the next bar in the simulator to reduce look-ahead bias.

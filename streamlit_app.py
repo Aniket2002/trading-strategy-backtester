@@ -29,10 +29,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Title and intro
-st.markdown("<h1 style='color:#00C49F'>🎰 Strategy-Gamble Backtester</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color:#00C49F'>Walk-Forward Equity Strategy Backtester</h1>", unsafe_allow_html=True)
 
 st.markdown("""
-Welcome to **Strategy-Gamble** — an interactive tool to visualize how trading strategies would have performed on real stock data.
+Welcome to the **Walk-Forward Equity Strategy Backtester** — an interactive tool to visualize how trading strategies would have performed on historical data.
 
 This app lets you:
 - Backtest SMA/EMA and RSI strategies  
