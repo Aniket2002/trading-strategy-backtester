@@ -1,25 +1,5 @@
-# Core data tools
-pandas
-numpy
-matplotlib
-seaborn
-plotly
-
-# Financial tools
-yfinance
-backtrader
-ta
-quantstats
-empyrical
-
-# Machine learning
-scikit-learn
-xgboost
-joblib
-
-# Streamlit UI
-streamlit
-
-# Logging and utilities
-loguru
-tqdm
+numpy>=1.24,<3
+pandas>=2.0,<3
+plotly>=5,<7
+streamlit>=1.30,<2
+yfinance>=0.2,<2
