@@ -1,178 +1,217 @@
-import streamlit as st
-import pandas as pd
-import yfinance as yf
-import plotly.graph_objs as go
-import importlib
+"""Interactive presentation layer for the single-asset backtester."""
+
+from datetime import date, timedelta
 from io import StringIO
 
-from strategies.sma_ema import sma_ema_strategy
-from strategies.rsi import rsi_strategy
-import backtest_engine.simulate_strategy as sim
-importlib.reload(sim)
+import numpy as np
+import pandas as pd
+import plotly.graph_objs as go
+import streamlit as st
+import yfinance as yf
+
 from backtest_engine.simulate_strategy import simulate_trading
+from strategies.rsi import rsi_strategy
+from strategies.sma_ema import sma_ema_strategy
 
-# 📐 Compact layout: reduce top/bottom padding
-st.set_page_config(page_title="Strategy Backtester", layout="wide")
-st.markdown("""
-    <style>
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-    }
-    section.main > div:first-child {
-        padding-top: 1rem;
-    }
-    [data-testid="stSidebar"] {
-        padding-top: 1rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="Equity Strategy Backtester", layout="wide")
+st.title("Walk-Forward Equity Strategy Backtester")
+st.write(
+    "Inspect simple technical rules under explicit next-bar execution and "
+    "transaction-cost assumptions. This is an educational single-asset simulator."
+)
 
-# Title and intro
-st.markdown("<h1 style='color:#00C49F'>Walk-Forward Equity Strategy Backtester</h1>", unsafe_allow_html=True)
+st.sidebar.header("Backtest assumptions")
+strategy_choice = st.sidebar.selectbox(
+    "Strategy",
+    ["SMA/EMA crossover", "RSI regime"],
+)
+ticker = st.sidebar.text_input("Ticker", value="AAPL").strip().upper()
+today = date.today()
+start_date = st.sidebar.date_input("Start date", value=today - timedelta(days=365 * 3))
+end_date = st.sidebar.date_input("End date", value=today)
+initial_cash = st.sidebar.number_input(
+    "Initial cash",
+    min_value=1_000.0,
+    value=100_000.0,
+    step=1_000.0,
+)
+transaction_cost_bps = st.sidebar.number_input(
+    "Transaction cost (bps per traded notional)",
+    min_value=0.0,
+    value=10.0,
+    step=1.0,
+)
 
-st.markdown("""
-Welcome to the **Walk-Forward Equity Strategy Backtester** — an interactive tool to visualize how trading strategies would have performed on historical data.
+if strategy_choice == "SMA/EMA crossover":
+    sma_window = st.sidebar.slider("SMA window", 10, 200, value=50)
+    ema_window = st.sidebar.slider("EMA window", 5, 100, value=20)
+    st.sidebar.caption("Enter when the EMA crosses above the SMA; exit when it crosses below.")
+else:
+    rsi_window = st.sidebar.slider("RSI window", 5, 30, value=14)
+    rsi_buy = st.sidebar.slider("RSI entry threshold", 10, 50, value=30)
+    minimum_exit = max(40, rsi_buy + 1)
+    rsi_exit = st.sidebar.slider(
+        "RSI exit threshold",
+        minimum_exit,
+        80,
+        value=max(50, minimum_exit),
+    )
+    st.sidebar.caption(
+        "Enter below the lower threshold and remain invested until RSI exceeds the exit threshold."
+    )
 
-This app lets you:
-- Backtest SMA/EMA and RSI strategies  
-- Simulate trades and view performance  
-- Download trade logs  
-- Understand key metrics — beginner-friendly
-""")
+run = st.sidebar.button("Run backtest", type="primary")
 
-# Sidebar controls
-st.sidebar.header("⚙️ Parameters")
-strategy_choice = st.sidebar.selectbox("Select Strategy", ["SMA/EMA Crossover", "RSI Strategy"])
+if not run:
+    st.info("Set the assumptions in the sidebar and select **Run backtest**.")
+    st.stop()
 
-with st.sidebar.expander("📘 Strategy Description"):
-    if strategy_choice == "SMA/EMA Crossover":
-        st.markdown("""
-**SMA/EMA Crossover**
+if not ticker:
+    st.error("Enter a ticker.")
+    st.stop()
+if start_date >= end_date:
+    st.error("The start date must be earlier than the end date.")
+    st.stop()
 
-Buy when **EMA crosses above SMA**  
-Sell when **EMA crosses below SMA**
-        """)
+try:
+    prices = yf.download(
+        ticker,
+        start=start_date,
+        end=end_date + timedelta(days=1),
+        auto_adjust=True,
+        progress=False,
+    )
+    if prices.empty:
+        st.error("No adjusted price data were returned for this ticker and period.")
+        st.stop()
+
+    if isinstance(prices.columns, pd.MultiIndex):
+        prices.columns = [column[0] for column in prices.columns]
     else:
-        st.markdown("""
-**RSI Strategy**
+        prices.columns = [str(column).strip() for column in prices.columns]
 
-Buy when **RSI < 30** (oversold)  
-Sell when **RSI > 50** (momentum reversal)
-        """)
-
-ticker = st.sidebar.text_input("Ticker", placeholder="e.g. AAPL").upper()
-start_date = st.sidebar.date_input("Start Date")
-end_date = st.sidebar.date_input("End Date")
-
-if strategy_choice == "SMA/EMA Crossover":
-    sma_win = st.sidebar.slider("SMA Window", 10, 200, value=50)
-    ema_win = st.sidebar.slider("EMA Window", 5, 100, value=20)
-
-if strategy_choice == "RSI Strategy":
-    rsi_window = st.sidebar.slider("RSI Window", 5, 30, value=14)
-    rsi_buy = st.sidebar.slider("RSI Buy Threshold", 10, 50, value=30)
-    rsi_sell = st.sidebar.slider("RSI Exit Threshold", 40, 70, value=50)
-
-# 🚀 Button (now visible immediately)
-if st.sidebar.button("🚀 Run Strategy"):
-    st.subheader(f"{strategy_choice} on {ticker} from {start_date} to {end_date}")
-
-    try:
-        df = yf.download(ticker, start=start_date, end=end_date)
-        if df.empty:
-            st.error("⚠️ No data found for this ticker/date range.")
-            st.stop()
-
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] for col in df.columns]
-        else:
-            df.columns = [str(col).strip() for col in df.columns]
-
-        df.drop(columns=["Adj Close"], inplace=True, errors="ignore")
-        df.reset_index(inplace=True)
-        df.set_index("Date", inplace=True)
-
-        if strategy_choice == "SMA/EMA Crossover":
-            df = sma_ema_strategy(df, sma_window=sma_win, ema_window=ema_win)
-        else:
-            df = rsi_strategy(df, rsi_window=rsi_window, rsi_buy=rsi_buy, rsi_exit=rsi_sell)
-
-        if "Position" not in df.columns:
-            st.error("❌ Strategy output missing 'Position' column.")
-            st.write("🧪 Debug - Columns in DataFrame:", df.columns.tolist())
-            st.stop()
-
-        df = simulate_trading(df, save_reports=False)
-
-        st.markdown("<h3 style='color:#00C49F'>📊 Interactive Price Chart + Signals</h3>", unsafe_allow_html=True)
-
-        price_fig = go.Figure()
-        price_fig.add_trace(go.Scatter(x=df.index, y=df["Close"], mode='lines', name='Close', line=dict(color='white')))
-        if "SMA" in df.columns:
-            price_fig.add_trace(go.Scatter(x=df.index, y=df["SMA"], mode='lines', name='SMA', line=dict(dash='dash', color='cyan')))
-        if "EMA" in df.columns:
-            price_fig.add_trace(go.Scatter(x=df.index, y=df["EMA"], mode='lines', name='EMA', line=dict(dash='dot', color='orange')))
-
-        buy_signals = df[df["Position"] == 1]
-        sell_signals = df[df["Position"] == -1]
-
-        price_fig.add_trace(go.Scatter(
-            x=buy_signals.index, y=buy_signals["Close"],
-            mode='markers', marker=dict(symbol='triangle-up', size=10, color='lime'),
-            name='BUY Signal'
-        ))
-        price_fig.add_trace(go.Scatter(
-            x=sell_signals.index, y=sell_signals["Close"],
-            mode='markers', marker=dict(symbol='triangle-down', size=10, color='red'),
-            name='SELL Signal'
-        ))
-
-        price_fig.update_layout(
-            height=500,
-            paper_bgcolor='#0E1117',
-            plot_bgcolor='#0E1117',
-            font=dict(color='white'),
-            legend=dict(bgcolor='rgba(0,0,0,0)', borderwidth=0),
-            margin=dict(l=20, r=20, t=40, b=20)
+    if strategy_choice == "SMA/EMA crossover":
+        frame = sma_ema_strategy(
+            prices,
+            sma_window=sma_window,
+            ema_window=ema_window,
+        )
+    else:
+        frame = rsi_strategy(
+            prices,
+            rsi_window=rsi_window,
+            rsi_buy=rsi_buy,
+            rsi_exit=rsi_exit,
         )
 
-        st.plotly_chart(price_fig, use_container_width=True)
+    frame = simulate_trading(
+        frame,
+        initial_cash=float(initial_cash),
+        transaction_cost_bps=float(transaction_cost_bps),
+    )
+except (ValueError, RuntimeError) as exc:
+    st.error(f"Backtest could not run: {exc}")
+    st.stop()
+except Exception as exc:
+    st.error(f"Data download or application error: {exc}")
+    st.stop()
 
-        if "RSI" in df.columns:
-            st.markdown("<h3 style='color:#00C49F'>📉 RSI Indicator</h3>", unsafe_allow_html=True)
-            with st.expander("📖 What does this show?"):
-                st.markdown("Relative Strength Index (RSI) tracks momentum. <30 = oversold (buy), >70 = overbought (sell).")
-            st.line_chart(df["RSI"], use_container_width=True)
+st.subheader(f"{strategy_choice}: {ticker}")
+st.caption(
+    f"{frame.index.min().date()} to {frame.index.max().date()} · adjusted daily "
+    "closes · orders filled at the next close · fractional shares · no shorting"
+)
 
-        st.markdown("<h3 style='color:#00C49F'>💼 Portfolio Value Over Time</h3>", unsafe_allow_html=True)
-        st.line_chart(df["Total Value"], use_container_width=True)
+price_figure = go.Figure()
+price_figure.add_trace(
+    go.Scatter(x=frame.index, y=frame["Close"], mode="lines", name="Adjusted close")
+)
+if "SMA" in frame:
+    price_figure.add_trace(go.Scatter(x=frame.index, y=frame["SMA"], mode="lines", name="SMA"))
+if "EMA" in frame:
+    price_figure.add_trace(go.Scatter(x=frame.index, y=frame["EMA"], mode="lines", name="EMA"))
 
-        st.markdown("<h3 style='color:#00C49F'>📈 Strategy Metrics</h3>", unsafe_allow_html=True)
-        final_val = df["Total Value"].iloc[-1]
-        ret_pct = round((final_val / 100000 - 1) * 100, 2)
-        returns = df["Total Value"].pct_change().dropna()
-        sharpe = (returns.mean() / returns.std()) * (252 ** 0.5) if returns.std() != 0 else 0
-        drawdown = (df["Total Value"] / df["Total Value"].cummax() - 1).min() * 100
-        trades = df["Buy/Sell"].isin(["BUY", "SELL"]).sum()
+buy_fills = frame[frame["Buy/Sell"] == "BUY"]
+sell_fills = frame[frame["Buy/Sell"] == "SELL"]
+price_figure.add_trace(
+    go.Scatter(
+        x=buy_fills.index,
+        y=buy_fills["Close"],
+        mode="markers",
+        marker={"symbol": "triangle-up", "size": 10},
+        name="Buy fill",
+    )
+)
+price_figure.add_trace(
+    go.Scatter(
+        x=sell_fills.index,
+        y=sell_fills["Close"],
+        mode="markers",
+        marker={"symbol": "triangle-down", "size": 10},
+        name="Sell fill",
+    )
+)
+price_figure.update_layout(height=480, margin={"l": 20, "r": 20, "t": 30, "b": 20})
+st.plotly_chart(price_figure, use_container_width=True)
 
-        cols = st.columns(4)
-        cols[0].metric("Final Value", f"${final_val:,.2f}")
-        cols[1].metric("Return (%)", f"{ret_pct:.2f}%")
-        cols[2].metric("Sharpe", f"{sharpe:.2f}")
-        cols[3].metric("Max Drawdown", f"{drawdown:.2f}%")
-        st.caption(f"🔁 Total Trades: {trades}")
+if "RSI" in frame:
+    st.subheader("RSI")
+    st.line_chart(frame["RSI"], use_container_width=True)
 
-        st.markdown("<h3 style='color:#00C49F'>📋 Trade Log</h3>", unsafe_allow_html=True)
-        trade_log = df[df["Buy/Sell"].isin(["BUY", "SELL"])][["Buy/Sell", "Close"]].copy()
-        trade_log["Date"] = trade_log.index
-        trade_log.rename(columns={"Buy/Sell": "Action", "Close": "Price"}, inplace=True)
-        st.dataframe(trade_log.reset_index(drop=True))
+buy_and_hold = float(initial_cash) * frame["Close"] / frame["Close"].iloc[0]
+wealth = pd.DataFrame(
+    {
+        "Strategy": frame["Total Value"],
+        "Buy and hold (frictionless)": buy_and_hold,
+    }
+)
+st.subheader("Portfolio comparison")
+st.line_chart(wealth, use_container_width=True)
 
-        csv_buffer = StringIO()
-        trade_log.to_csv(csv_buffer, index=False)
-        st.download_button("📥 Download Trade Log CSV", csv_buffer.getvalue(), file_name="trade_log.csv", mime="text/csv")
+returns = frame["Total Value"].pct_change().dropna()
+volatility = returns.std(ddof=1)
+sharpe = (
+    float(returns.mean() / volatility * np.sqrt(252))
+    if len(returns) > 1 and np.isfinite(volatility) and volatility > 0
+    else 0.0
+)
+strategy_return = frame["Total Value"].iloc[-1] / float(initial_cash) - 1
+benchmark_return = buy_and_hold.iloc[-1] / float(initial_cash) - 1
+drawdown = (frame["Total Value"] / frame["Total Value"].cummax() - 1).min()
+trades = int(frame["Buy/Sell"].isin(["BUY", "SELL"]).sum())
 
-    except Exception as e:
-        st.error(f"🚨 Strategy failed to run: {e}")
-        st.stop()
+columns = st.columns(6)
+columns[0].metric("Final value", f"${frame['Total Value'].iloc[-1]:,.2f}")
+columns[1].metric("Strategy return", f"{strategy_return:.2%}")
+columns[2].metric("Buy-and-hold return", f"{benchmark_return:.2%}")
+columns[3].metric("Sharpe (rf=0)", f"{sharpe:.2f}")
+columns[4].metric("Max drawdown", f"{drawdown:.2%}")
+columns[5].metric("Trades", f"{trades}")
+st.caption(f"Cumulative modelled transaction cost: ${frame['Transaction Cost'].sum():,.2f}")
+
+st.subheader("Executed trades")
+trade_log = frame.loc[
+    frame["Buy/Sell"].isin(["BUY", "SELL"]),
+    ["Buy/Sell", "Close", "Transaction Cost"],
+].copy()
+trade_log["Date"] = trade_log.index
+trade_log = trade_log.rename(columns={"Buy/Sell": "Action", "Close": "Price"})[
+    ["Date", "Action", "Price", "Transaction Cost"]
+]
+st.dataframe(trade_log, hide_index=True, use_container_width=True)
+
+csv_buffer = StringIO()
+trade_log.to_csv(csv_buffer, index=False)
+st.download_button(
+    "Download trade log",
+    csv_buffer.getvalue(),
+    file_name="trade_log.csv",
+    mime="text/csv",
+)
+
+st.warning(
+    "Limitations: Yahoo Finance data may be revised; the universe is one "
+    "surviving ticker selected today; fills use the next daily close with "
+    "fractional shares; costs are linear; dividends, slippage, spreads, taxes, "
+    "liquidity, and parameter holdouts are not modelled."
+)
